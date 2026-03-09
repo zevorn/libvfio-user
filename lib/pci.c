@@ -52,18 +52,38 @@ pci_hdr_write_bar(vfu_ctx_t *vfu_ctx, uint16_t bar_index, const char *buf)
 
     assert(vfu_ctx != NULL);
 
+    hdr = &vfu_pci_get_config_space(vfu_ctx)->hdr;
+    cfg_addr = *(uint32_t *) buf;
+
+    /*
+     * Handle upper half of a 64-bit BAR (BAR[N] where BAR[N-1] has
+     * locatable==2).  The upper BAR stores the high 32 bits of the
+     * base address and must return the high 32 bits of the size mask
+     * during BAR size probing.
+     */
+    if (bar_index > 0 && bar_index <= 5 &&
+        hdr->bars[bar_index - 1].mem.locatable == 2) {
+        if (cfg_addr == 0xffffffff) {
+            uint64_t size = vfu_ctx->reg_info[bar_index - 1].size;
+            if (size > 0) {
+                uint64_t size_mask = ~size + 1;
+                cfg_addr = (uint32_t)(size_mask >> 32);
+            }
+        }
+        hdr->bars[bar_index].raw = htole32(cfg_addr);
+        return;
+    }
+
     if (vfu_ctx->reg_info[bar_index].size == 0) {
         return;
     }
 
-    hdr = &vfu_pci_get_config_space(vfu_ctx)->hdr;
-
-    cfg_addr = *(uint32_t *) buf;
-
     vfu_log(vfu_ctx, LOG_DEBUG, "BAR%d addr 0x%x", bar_index, cfg_addr);
 
     if (cfg_addr == 0xffffffff) {
-        cfg_addr = ~(vfu_ctx->reg_info[bar_index].size) + 1;
+        /* Use 64-bit arithmetic so sizes > 4GB produce correct lower bits */
+        uint64_t size = vfu_ctx->reg_info[bar_index].size;
+        cfg_addr = (uint32_t)(~size + 1);
     }
 
     if ((vfu_ctx->reg_info[bar_index].flags & VFU_REGION_FLAG_MEM)) {
