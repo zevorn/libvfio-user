@@ -279,7 +279,7 @@ is_valid_region_access(vfu_ctx_t *vfu_ctx, size_t size, uint16_t cmd,
 
     if (satadd_u64(ra->offset, ra->count) > vfu_ctx->reg_info[index].size) {
         vfu_log(vfu_ctx, LOG_ERR, "out of bounds region access %#lx-%#lx "
-                "(size %u)", ra->offset, ra->offset + ra->count,
+                "(size %lu)", ra->offset, ra->offset + ra->count,
                 vfu_ctx->reg_info[index].size);
 
         return false;
@@ -614,7 +614,7 @@ handle_device_get_region_io_fds(vfu_ctx_t *vfu_ctx, vfu_msg_t *msg)
 
     msg->out.nr_fds = 0;
     if (req->argsz >= reply->argsz) {
-        msg->out.fds = calloc(sizeof(int), max_sent_sub_regions);
+        msg->out.fds = calloc(max_sent_sub_regions, sizeof(int));
         if (msg->out.fds == NULL) {
             return -1;
         }
